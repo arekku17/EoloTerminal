@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,12 +72,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.argento.eoloapp.components.StatusBadge
 import com.argento.eoloapp.data.EstacionamientoDetailData
 import com.argento.eoloapp.data.Reserva
+import com.argento.eoloapp.data.Tarifa
 import com.argento.eoloapp.session.SessionManager
+import com.argento.eoloapp.utils.formatDetailDate
 import com.argento.eoloapp.viewmodel.ParkingDetailState
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModel
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModelFactory
+import com.argento.eoloapp.viewmodel.ReservationCreationState
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,6 +97,8 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
     )
     val state by viewModel.detailState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val tariffs by viewModel.tariffsState.collectAsState()
+    val reservationState by viewModel.reservationCreationState.collectAsState()
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -101,6 +108,14 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
     // Bottom Sheet State
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Effect to close bottom sheet on success
+    LaunchedEffect(reservationState) {
+        if (reservationState is ReservationCreationState.Success) {
+            showBottomSheet = false
+            viewModel.resetReservationCreationState()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -155,9 +170,24 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
                             containerColor = Color.White
                         ) {
                             VehicleEntryBottomSheetContent(
-                                data = data,
+                                tariffs = tariffs,
+                                isLoading = reservationState is ReservationCreationState.Loading,
                                 onDismiss = { showBottomSheet = false },
-                                onAdd = { /* TODO: Implement POST logic */ }
+                                onAdd = { placas, numEco, tel, tipo, cat, tarifaId, _, placaCaja1, placaCaja2 ->
+                                    viewModel.createReservation(
+                                        placas = placas,
+                                        numEco = numEco,
+                                        tel = tel,
+                                        tipo = tipo,
+                                        cat = cat,
+                                        tarifaId = tarifaId,
+                                        caja1 = placaCaja1,
+                                        caja2 = placaCaja2
+                                    )
+                                },
+                                fetchTariffs = { tipo, categoria ->
+                                    viewModel.fetchTarifas(tipo, categoria)
+                                }
                             )
                         }
                     }
@@ -176,18 +206,23 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleEntryBottomSheetContent(
-    data: EstacionamientoDetailData,
+    tariffs: List<Tarifa>,
+    isLoading: Boolean,
     onDismiss: () -> Unit,
-    onAdd: () -> Unit
+    onAdd: (String, String, String, String, String, String, String, String, String) -> Unit,
+    fetchTariffs: (String, String) -> Unit
 ) {
     var placas by remember { mutableStateOf("") }
     var numeroEconomico by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
+    var placaCaja1 by remember { mutableStateOf("") }
+    var placaCaja2 by remember { mutableStateOf("") }
 
     // Dropdown states
     var selectedTipo by remember { mutableStateOf("Automovil") }
     var selectedCategoria by remember { mutableStateOf("Sedan") }
-    var selectedTarifa by remember { mutableStateOf("") }
+    var selectedTarifaId by remember { mutableStateOf("") }
+    var selectedTarifaLabel by remember { mutableStateOf("") }
     
     // Dropdown Expansions
     var expandedTipo by remember { mutableStateOf(false) }
@@ -195,32 +230,54 @@ fun VehicleEntryBottomSheetContent(
     var expandedTarifa by remember { mutableStateOf(false) }
 
     // Data Lists
-    val tiposVehiculo = listOf("Bicicleta", "Motocicleta", "Automovil", "Camion")
+    val tiposVehiculo = listOf("Motocicleta", "Automovil", "Camion")
     
     val categoriasMap = mapOf(
         "Automovil" to listOf("Sedan", "Camioneta (SUV)", "Pickup", "Van/Furgoneta"),
         "Motocicleta" to listOf("Deportiva", "Chopper", "Scooter", "Montaña/Cross"),
-        "Camion" to listOf("3.5 Ton", "Pasajeros", "Rabón / Thorton", "Trailer / Tracto", "Trailer / Tracto 1 caja", "2 cajas", "1 paltaforma", "2 plataformas", "1 Cisterna/Pipa", "2 Cistenas/Pipas"),
+        "Camion" to listOf(
+            "3.5 Ton",
+            "Pasajeros",
+            "Rabón / Thorton",
+            "Trailer / Tracto.",
+            "Trailer / Tracto. 1 Caja",
+            "Trailer / Tracto. 2 Cajas",
+            "Trailer / Tracto. 1 Plataforma",
+            "Trailer / Tracto. 2 Plataformas",
+            "Trailer / Tracto. 1 Cisterna/Pipa",
+            "Trailer / Tracto. 2 Cistenas/Pipas"),
         "Bicicleta" to listOf("Estándar")
     )
 
-    // Calculate dynamic tariff string based on selection
     val currentCategories = categoriasMap[selectedTipo] ?: emptyList()
     
-    val price = when(selectedTipo) {
-        "Automovil" -> 400
-        "Motocicleta" -> 100
-        "Camion" -> 200
-        "Bicicleta" -> 300
-        else -> 0
+    // Visibility logic for Placa Cajas
+    val showPlacaCaja1 = selectedCategoria in listOf(
+        "Trailer / Tracto. 1 Caja",
+        "Trailer / Tracto. 2 Cajas",
+        "Trailer / Tracto. 1 Plataforma",
+        "Trailer / Tracto. 2 Plataformas",
+        "Trailer / Tracto. 1 Cisterna/Pipa",
+        "Trailer / Tracto. 2 Cistenas/Pipas"
+    )
+    
+    val showPlacaCaja2 = selectedCategoria in listOf(
+        "Trailer / Tracto. 2 Cajas",
+        "Trailer / Tracto. 2 Plataformas",
+        "Trailer / Tracto. 2 Cistenas/Pipas"
+    )
+
+    // Fetch tariffs when type or category changes
+    LaunchedEffect(selectedTipo, selectedCategoria) {
+        fetchTariffs(selectedTipo, selectedCategoria)
+        selectedTarifaId = ""
+        selectedTarifaLabel = ""
+        
+        // Reset Caja fields if hidden
+        if (!showPlacaCaja1) placaCaja1 = ""
+        if (!showPlacaCaja2) placaCaja2 = ""
     }
 
-    val tarifaString = "$selectedTipo (${formatCurrency(price.toDouble())})"
-    
-    if (selectedTarifa.isEmpty()) {
-        selectedTarifa = tarifaString
-    }
-    
     // Get screen height to limit height to 60%
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
@@ -228,7 +285,7 @@ fun VehicleEntryBottomSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = screenHeight * 0.6f) // Max 60% of screen height
+            .heightIn(max = screenHeight * 0.8f) // Max 60% of screen height
             .verticalScroll(rememberScrollState()) // Enable scrolling
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp) 
@@ -255,7 +312,7 @@ fun VehicleEntryBottomSheetContent(
                 LabelText("Placas", isRequired = true)
                 OutlinedTextField(
                     value = placas,
-                    onValueChange = { placas = it },
+                    onValueChange = { placas = it.uppercase() },
                     placeholder = { Text("Placas", color = Color.Gray) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -358,13 +415,45 @@ fun VehicleEntryBottomSheetContent(
             }
         }
 
+        // Row 3: Placas Caja 1 & Placas Caja 2 (Conditional)
+        if (showPlacaCaja1) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    LabelText("Placa Caja 1", isRequired = true)
+                    OutlinedTextField(
+                        value = placaCaja1,
+                        onValueChange = { placaCaja1 = it.uppercase() },
+                        placeholder = { Text("Placa Caja 1", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+                
+                if (showPlacaCaja2) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        LabelText("Placa Caja 2", isRequired = true)
+                        OutlinedTextField(
+                            value = placaCaja2,
+                            onValueChange = { placaCaja2 = it.uppercase() },
+                            placeholder = { Text("Placa Caja 2", color = Color.Gray) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                } else {
+                     Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Tarifa
         LabelText("Tarifa", isRequired = true)
         Box {
              OutlinedTextField(
-                value = tarifaString, // Displaying the calculated tariff
+                value = selectedTarifaLabel,
                 onValueChange = {},
                 readOnly = true,
                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
@@ -385,14 +474,21 @@ fun VehicleEntryBottomSheetContent(
                 onDismissRequest = { expandedTarifa = false },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Currently only one option logic based on requirement
-                DropdownMenuItem(
-                    text = { Text(tarifaString) },
-                    onClick = {
-                        selectedTarifa = tarifaString
-                        expandedTarifa = false
-                    }
-                )
+                tariffs.forEach { tarifa ->
+                    val tarifaPrice = tarifa.tarifa ?: 0.0
+                    val isSimple = tarifa.logicaTarifa == "Sencilla"
+                    val tarifaSuffix = if (isSimple) "(${formatCurrency(tarifaPrice)})" else ""
+                    val displayText = "${tarifa.tipoVehiculo ?: ""} ${tarifa.nombre ?: ""} ${tarifa.frecuencia ?: ""} $tarifaSuffix".trim()
+                    
+                    DropdownMenuItem(
+                        text = { Text(displayText) },
+                        onClick = {
+                            selectedTarifaId = tarifa.id
+                            selectedTarifaLabel = displayText
+                            expandedTarifa = false
+                        }
+                    )
+                }
             }
         }
 
@@ -418,6 +514,7 @@ fun VehicleEntryBottomSheetContent(
         ) {
             OutlinedButton(
                 onClick = onDismiss,
+                enabled = !isLoading,
                 modifier = Modifier
                     .weight(1f)
                     .height(50.dp),
@@ -432,17 +529,29 @@ fun VehicleEntryBottomSheetContent(
             }
             
             Button(
-                onClick = onAdd,
+                onClick = {
+                    onAdd(placas, numeroEconomico, telefono, selectedTipo, selectedCategoria, selectedTarifaId, selectedTarifaLabel, placaCaja1, placaCaja2)
+                },
+                enabled = !isLoading && placas.isNotBlank() && selectedTarifaId.isNotBlank() &&
+                        (!showPlacaCaja1 || placaCaja1.isNotBlank()) &&
+                        (!showPlacaCaja2 || (placaCaja1.isNotBlank() && placaCaja2.isNotBlank())),
                 modifier = Modifier
                     .weight(1f)
                     .height(50.dp),
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF94A3B8)) // Grayish blue from image
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C3E50))
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Agregar")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Agregar")
+                    }
                 }
             }
         }
@@ -468,9 +577,6 @@ fun LabelText(text: String, isRequired: Boolean) {
         }
     }
 }
-
-// ... Rest of the file (ParkingHeader, ParkingContent, etc.) remains the same
-// But I need to include them in the full file write to avoid overwriting them.
 
 @Composable
 fun ParkingHeader(parkingName: String) {
@@ -695,7 +801,7 @@ fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
                 }
                 
                 Text(
-                    text = formatDate(reserva.createdDate),
+                    text = formatDetailDate(reserva.createdDate),
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -743,34 +849,6 @@ fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
     }
 }
 
-@Composable
-fun StatusBadge(status: String) {
-    val (backgroundColor, textColor) = when (status.lowercase()) {
-        "pagado" -> Color(0xFFE8F8F5) to Color(0xFF2ECC71)
-        "pendiente" -> Color(0xFFFEF9E7) to Color(0xFFF1C40F)
-        "salida" -> Color(0xFFE8F6F3) to Color(0xFF1ABC9C)
-        else -> Color(0xFFF2F4F4) to Color(0xFF95A5A6)
-    }
-
-    Box(
-        modifier = Modifier
-            .background(backgroundColor, RoundedCornerShape(16.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = status,
-            color = textColor,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
 fun formatCurrency(amount: Double): String {
     return NumberFormat.getCurrencyInstance(Locale.US).format(amount)
-}
-
-fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd/MM/yy h:mm a", Locale.getDefault())
-    return sdf.format(Date(timestamp))
 }

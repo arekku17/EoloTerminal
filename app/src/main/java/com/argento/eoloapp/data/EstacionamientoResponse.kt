@@ -17,6 +17,7 @@ data class Estacionamiento(
     val razon_social: String?,
     val ciudad: String?,
     val estado: String?,
-    val Activo: Boolean?
+    val Activo: Boolean?,
+    val timeZoneId: String?
     // Add other fields if necessary, but these are enough for the list
 )

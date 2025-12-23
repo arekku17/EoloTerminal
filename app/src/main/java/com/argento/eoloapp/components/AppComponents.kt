@@ -2,7 +2,9 @@ package com.argento.eoloapp.components
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -90,6 +93,29 @@ fun ForgotPasswordHeadingTextComponent(action: String) {
             modifier = Modifier.fillMaxWidth().offset(y = (-18).dp),
             fontSize = 39.sp,
             color = Primary,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun StatusBadge(status: String) {
+    val (backgroundColor, textColor) = when (status.lowercase()) {
+        "pendiente" -> Color(0xFFE8F8F5) to Color(0xFF2ECC71)
+        "entrada" -> Color(0xFFFEF9E7) to Color(0xFFF1C40F)
+        "salida" -> Color(0xFFE8F6F3) to Color(0xFF1ABC9C)
+        else -> Color(0xFFF2F4F4) to Color(0xFF95A5A6)
+    }
+
+    Box(
+        modifier = Modifier
+            .background(backgroundColor, RoundedCornerShape(16.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = status,
+            color = textColor,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold
         )
     }
