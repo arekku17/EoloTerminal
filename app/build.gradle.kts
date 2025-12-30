@@ -58,6 +58,8 @@ dependencies {
     
     // Updated BOM to get newer Material 3 components
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+
+    implementation(files("libs/nativesdk-5.0.4.aar"))
     
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

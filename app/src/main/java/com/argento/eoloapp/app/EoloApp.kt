@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
 import com.argento.eoloapp.screens.Navigation
 
 @Composable
-fun HalloweenApp() {
+fun App() {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.White

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.argento.eoloapp.api.RetrofitInstance
-import com.argento.eoloapp.data.ReservaDetail
+import com.argento.eoloapp.data.ReservationDetailWrapper
 import com.argento.eoloapp.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +31,7 @@ class MovementDetailViewModel(
                     val bearerToken = "Bearer $token"
                     val response = RetrofitInstance.api.getReservationDetail(bearerToken, reservationId)
                     if (response.status == "success") {
-                        _uiState.value = MovementDetailState.Success(response.response.reserva)
+                        _uiState.value = MovementDetailState.Success(response.response)
                     } else {
                         _uiState.value = MovementDetailState.Error("Error: ${response.status}")
                     }
@@ -47,7 +47,7 @@ class MovementDetailViewModel(
 
 sealed class MovementDetailState {
     object Loading : MovementDetailState()
-    data class Success(val reserva: ReservaDetail) : MovementDetailState()
+    data class Success(val reserva: ReservationDetailWrapper) : MovementDetailState()
     data class Error(val message: String) : MovementDetailState()
 }
 

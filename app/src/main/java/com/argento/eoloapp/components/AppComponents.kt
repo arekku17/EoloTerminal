@@ -101,9 +101,8 @@ fun ForgotPasswordHeadingTextComponent(action: String) {
 @Composable
 fun StatusBadge(status: String) {
     val (backgroundColor, textColor) = when (status.lowercase()) {
-        "pendiente" -> Color(0xFFE8F8F5) to Color(0xFF2ECC71)
-        "entrada" -> Color(0xFFFEF9E7) to Color(0xFFF1C40F)
-        "salida" -> Color(0xFFE8F6F3) to Color(0xFF1ABC9C)
+        "entrada" -> Color(0xFFE8F8F5) to Color(0xFF1F834A) // Green for "entrada"
+        "salida" -> Color(0xFFFFEBEE) to Color(0xFFE53935) // Red for "salida"
         else -> Color(0xFFF2F4F4) to Color(0xFF95A5A6)
     }
 

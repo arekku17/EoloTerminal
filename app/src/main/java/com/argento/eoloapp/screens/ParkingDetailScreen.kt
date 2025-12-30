@@ -77,6 +77,7 @@ import com.argento.eoloapp.data.EstacionamientoDetailData
 import com.argento.eoloapp.data.Reserva
 import com.argento.eoloapp.data.Tarifa
 import com.argento.eoloapp.session.SessionManager
+import com.argento.eoloapp.utils.TarifaUtils
 import com.argento.eoloapp.utils.formatDetailDate
 import com.argento.eoloapp.viewmodel.ParkingDetailState
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModel
@@ -153,11 +154,22 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
                 }
                 is ParkingDetailState.Error -> {
                     val error = (state as ParkingDetailState.Error).message
-                    Text(
-                        text = error,
-                        color = Color.Red,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = error,
+                            color = Color.Red,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        Button(
+                            onClick = { viewModel.fetchParkingDetail() }
+                        ) {
+                            Text("Reintentar")
+                        }
+                    }
                 }
                 is ParkingDetailState.Success -> {
                     val data = (state as ParkingDetailState.Success).data
@@ -687,7 +699,7 @@ fun ParkingContent(data: EstacionamientoDetailData, navController: NavController
             }
         }
         items(data.Reservas) { reserva ->
-            MovementCard(reserva = reserva) {
+            MovementCard(reserva = reserva, data.Estacionamiento.timeZoneId) {
                 navController.navigate("MovementDetailScreen/${reserva.id}")
             }
         }
@@ -766,7 +778,8 @@ fun SmallInfoCard(title: String, value: String, icon: ImageVector, modifier: Mod
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
+fun MovementCard(reserva: Reserva, timezone: String?, onClick: () -> Unit) {
+
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -787,13 +800,13 @@ fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = reserva.ID2 ?: "N/A",
+                        text = reserva.folio ?: "N/A",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = Color(0xFF2C3E50)
                     )
                     Text(
-                        text = formatCurrency(reserva.MontoTotal),
+                        text = if (reserva.MontoTotal != null) formatCurrency(reserva.MontoTotal) else "$--",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = Color(0xFF2C3E50)
@@ -801,7 +814,7 @@ fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
                 }
                 
                 Text(
-                    text = formatDetailDate(reserva.createdDate),
+                    text = formatDetailDate(reserva.createdDate, timezone),
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -841,7 +854,7 @@ fun MovementCard(reserva: Reserva, onClick: () -> Unit) {
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.Center
             ) {
-                 StatusBadge(status = reserva.Estatus ?: "Desconocido")
+                 StatusBadge(status = reserva.estatus ?: "Desconocido")
                  Spacer(modifier = Modifier.height(16.dp))
                  Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color.Gray)
             }

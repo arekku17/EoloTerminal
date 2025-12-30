@@ -59,5 +59,16 @@ fun Navigation() {
             val movementId = backStackEntry.arguments?.getString("movementId") ?: ""
             MovementDetailScreen(navController, movementId)
         }
+        composable(
+            route = "PaymentMethodScreen/{folio}/{amount}",
+            arguments = listOf(
+                navArgument("folio") { type = NavType.StringType },
+                navArgument("amount") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val folio = backStackEntry.arguments?.getString("folio") ?: ""
+            val amount = backStackEntry.arguments?.getString("amount") ?: "0.0"
+            PaymentMethodScreen(navController, folio, amount)
+        }
     }
 }
