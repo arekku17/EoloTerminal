@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.argento.eoloapp.api.RetrofitInstance
 import com.argento.eoloapp.data.CreateReservationRequest
 import com.argento.eoloapp.data.EstacionamientoDetailData
+import com.argento.eoloapp.data.Reserva
 import com.argento.eoloapp.data.Tarifa
 import com.argento.eoloapp.session.SessionManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,11 @@ class ParkingDetailViewModel(
 
     private val _reservationCreationState = MutableStateFlow<ReservationCreationState>(ReservationCreationState.Idle)
     val reservationCreationState: StateFlow<ReservationCreationState> = _reservationCreationState.asStateFlow()
+
+    private val _searchState = MutableStateFlow<SearchState>(SearchState.Idle)
+    val searchState: StateFlow<SearchState> = _searchState.asStateFlow()
+
+    private var searchJob: Job? = null
 
     init {
         fetchParkingDetail(isRefresh = false)
@@ -134,6 +142,39 @@ class ParkingDetailViewModel(
     fun resetReservationCreationState() {
         _reservationCreationState.value = ReservationCreationState.Idle
     }
+
+    fun searchMovimientos(query: String) {
+        searchJob?.cancel()
+        
+        if (query.isBlank()) {
+            _searchState.value = SearchState.Idle
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            delay(500) // Debounce
+            _searchState.value = SearchState.Loading
+            try {
+                val token = sessionManager.getAuthToken()
+                if (token != null) {
+                    val bearerToken = "Bearer $token"
+                    val response = RetrofitInstance.api.searchMovimientos(bearerToken, parkingId, query)
+                    if (response.status == "success") {
+                        _searchState.value = SearchState.Success(response.response.movimientos)
+                    } else {
+                        _searchState.value = SearchState.Error("Error searching movements")
+                    }
+                }
+            } catch (e: Exception) {
+                _searchState.value = SearchState.Error(e.message ?: "Unknown search error")
+            }
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        _searchState.value = SearchState.Idle
+    }
 }
 
 sealed class ParkingDetailState {
@@ -147,4 +188,11 @@ sealed class ReservationCreationState {
     object Loading : ReservationCreationState()
     object Success : ReservationCreationState()
     data class Error(val message: String) : ReservationCreationState()
+}
+
+sealed class SearchState {
+    object Idle : SearchState()
+    object Loading : SearchState()
+    data class Success(val results: List<Reserva>) : SearchState()
+    data class Error(val message: String) : SearchState()
 }

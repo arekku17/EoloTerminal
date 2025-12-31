@@ -66,12 +66,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.argento.eoloapp.R
 import com.argento.eoloapp.components.StatusBadge
 import com.argento.eoloapp.data.EstacionamientoDetailData
 import com.argento.eoloapp.data.Reserva
@@ -83,6 +85,7 @@ import com.argento.eoloapp.viewmodel.ParkingDetailState
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModel
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModelFactory
 import com.argento.eoloapp.viewmodel.ReservationCreationState
+import com.argento.eoloapp.viewmodel.SearchState
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,6 +103,7 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val tariffs by viewModel.tariffsState.collectAsState()
     val reservationState by viewModel.reservationCreationState.collectAsState()
+    val searchState by viewModel.searchState.collectAsState()
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -126,15 +130,32 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showBottomSheet = true },
-                containerColor = Color(0xFF2C3E50),
-                contentColor = Color.White
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ingreso")
+                FloatingActionButton(
+                    onClick = { /* TODO: Implement Scanning */ },
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF2C3E50)
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Icon(painterResource(R.drawable.qrcodescan), contentDescription = "Escanear")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Escanear")
+                    }
+                }
+                
+                FloatingActionButton(
+                    onClick = { showBottomSheet = true },
+                    containerColor = Color(0xFF2C3E50),
+                    contentColor = Color.White
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = "Add")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ingreso")
+                    }
                 }
             }
         }
@@ -173,7 +194,12 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
                 }
                 is ParkingDetailState.Success -> {
                     val data = (state as ParkingDetailState.Success).data
-                    ParkingContent(data = data, navController = navController)
+                    ParkingContent(
+                        data = data,
+                        searchState = searchState,
+                        onSearch = { query -> viewModel.searchMovimientos(query) },
+                        navController = navController
+                    )
                     
                     if (showBottomSheet) {
                         ModalBottomSheet(
@@ -622,8 +648,14 @@ fun ParkingHeader(parkingName: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParkingContent(data: EstacionamientoDetailData, navController: NavController) {
+fun ParkingContent(
+    data: EstacionamientoDetailData,
+    searchState: SearchState,
+    onSearch: (String) -> Unit,
+    navController: NavController
+) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -666,39 +698,47 @@ fun ParkingContent(data: EstacionamientoDetailData, navController: NavController
             }
         }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Movimientos",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2C3E50)
+                    color = Color(0xFF2C3E50),
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
-                Row {
-                    IconButton(
-                        onClick = { /* TODO */ },
-                        modifier = Modifier
-                            .background(Color(0xFFE0E5EC), CircleShape)
-                            .size(36.dp)
-                    ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF2C3E50), modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { /* TODO */ },
-                        modifier = Modifier
-                            .background(Color(0xFFE0E5EC), CircleShape)
-                            .size(36.dp)
-                    ) {
-                        Icon(Icons.Default.List, contentDescription = "Filter", tint = Color(0xFF2C3E50), modifier = Modifier.size(20.dp))
-                    }
+
+                var searchQuery by remember { mutableStateOf("") }
+
+                LaunchedEffect(searchQuery) {
+                    onSearch(searchQuery)
                 }
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, RoundedCornerShape(12.dp)),
+                    placeholder = { Text("Buscar placa, folio...", color = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.Gray) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.TextFieldDefaults.outlinedTextFieldColors(
+                        containerColor = Color.White,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedBorderColor = Color.Transparent
+                    ),
+                    singleLine = true
+                )
             }
         }
-        items(data.Reservas) { reserva ->
+
+        val displayList = if (searchState is SearchState.Success) {
+            searchState.results
+        } else {
+            data.Reservas
+        }
+
+        items(displayList) { reserva ->
             MovementCard(reserva = reserva, data.Estacionamiento.timeZoneId) {
                 navController.navigate("MovementDetailScreen/${reserva.id}")
             }

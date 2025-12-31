@@ -7,6 +7,7 @@ import com.argento.eoloapp.data.EstacionamientoResponse
 import com.argento.eoloapp.data.LoginRequest
 import com.argento.eoloapp.data.LoginResponse
 import com.argento.eoloapp.data.ReservationDetailResponse
+import com.argento.eoloapp.data.SearchMovimientosResponse
 import com.argento.eoloapp.data.TarifasResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -46,4 +47,11 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("reserva") reservationId: String
     ): ReservationDetailResponse
+
+    @GET("apk_search_movimientos")
+    suspend fun searchMovimientos(
+        @Header("Authorization") token: String,
+        @Query("Estacionamiento") parkingId: String,
+        @Query("search") query: String,
+    ): SearchMovimientosResponse
 }

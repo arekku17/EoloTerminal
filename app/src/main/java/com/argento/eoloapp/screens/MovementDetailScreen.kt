@@ -78,23 +78,25 @@ fun MovementDetailScreen(navController: NavController, movementId: String) {
         bottomBar = {
             if (state is MovementDetailState.Success) {
                 val reservaWrapper = (state as MovementDetailState.Success).reserva
-                val totalCalculado = if (reservaWrapper.reserva.fechaSalida == null) {
-                    TarifaUtils.calcularTotal(
-                        fechaIngreso = reservaWrapper.reserva.fechaIngreso ?: 0L,
-                        fechaSalida = System.currentTimeMillis(),
-                        logicaTarifa = reservaWrapper.tarifa.logicaTarifa,
-                        frecuencia = reservaWrapper.tarifa.frecuencia,
-                        tarifa = reservaWrapper.tarifa.tarifa,
-                        tarifaJson = reservaWrapper.reserva.TarifaJSON
-                    )
-                } else {
-                    reservaWrapper.reserva.MontoTotal ?: 0.0
-                }
-                val folio = reservaWrapper.reserva.folio ?: "N/A"
+                if (reservaWrapper.reserva.MontoTotal == null) {
+                    val totalCalculado = if (reservaWrapper.reserva.fechaSalida == null) {
+                        TarifaUtils.calcularTotal(
+                            fechaIngreso = reservaWrapper.reserva.fechaIngreso ?: 0L,
+                            fechaSalida = System.currentTimeMillis(),
+                            logicaTarifa = reservaWrapper.tarifa.logicaTarifa,
+                            frecuencia = reservaWrapper.tarifa.frecuencia,
+                            tarifa = reservaWrapper.tarifa.tarifa,
+                            tarifaJson = reservaWrapper.reserva.TarifaJSON
+                        )
+                    } else {
+                        reservaWrapper.reserva.MontoTotal ?: 0.0
+                    }
+                    val folio = reservaWrapper.reserva.folio ?: "N/A"
 
-                BottomActionButtons(onCobrarClick = {
-                    navController.navigate("PaymentMethodScreen/$folio/$totalCalculado")
-                })
+                    BottomActionButtons(onCobrarClick = {
+                        navController.navigate("PaymentMethodScreen/$folio/$totalCalculado")
+                    })
+                }
             }
         }
     ) { paddingValues ->

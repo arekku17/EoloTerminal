@@ -26,7 +26,7 @@ data class Reserva(
     @SerializedName("tipoVehiculo") val tipoVehiculo: String?,
     @SerializedName("categoriaVehiculo") val categoriaVehiculo: String?,
     @SerializedName("placaVehiculo") val placaVehiculo: String?,
-    @SerializedName("Monto Total") val MontoTotal: Double?,
+    @SerializedName("MontoTotal") val MontoTotal: Double?,
     val TarifaJSON: String?,
     @SerializedName("MetodoPago1") val MetodoPago1: String?,
 )
