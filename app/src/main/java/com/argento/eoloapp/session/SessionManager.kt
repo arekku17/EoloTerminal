@@ -16,6 +16,8 @@ class SessionManager(private val context: Context) {
     private val KEY_ALIAS = "auth_token_key"
     private val TRANSFORMATION = "AES/CBC/PKCS7Padding"
     private val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private val PREFS_NAME = "session_prefs"
+    private val USER_ID_KEY = "user_id"
 
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
@@ -51,7 +53,7 @@ class SessionManager(private val context: Context) {
             val encryptedBytes = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
             val iv = cipher.iv
 
-            val sharedPreferences = context.getSharedPreferences("session_prefs", Context.MODE_PRIVATE)
+            val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPreferences.edit()
                 .putString("encrypted_token", Base64.encodeToString(encryptedBytes, Base64.DEFAULT))
                 .putString("iv", Base64.encodeToString(iv, Base64.DEFAULT))
@@ -63,7 +65,7 @@ class SessionManager(private val context: Context) {
 
     suspend fun getAuthToken(): String? = withContext(Dispatchers.IO) {
         try {
-            val sharedPreferences = context.getSharedPreferences("session_prefs", Context.MODE_PRIVATE)
+            val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val encryptedToken = sharedPreferences.getString("encrypted_token", null)
             val ivString = sharedPreferences.getString("iv", null)
 
@@ -85,7 +87,7 @@ class SessionManager(private val context: Context) {
 
     suspend fun clearAuthToken() = withContext(Dispatchers.IO) {
         try {
-            val sharedPreferences = context.getSharedPreferences("session_prefs", Context.MODE_PRIVATE)
+            val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPreferences.edit()
                 .remove("encrypted_token")
                 .remove("iv")
@@ -93,5 +95,20 @@ class SessionManager(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    suspend fun saveUserId(userId: String) = withContext(Dispatchers.IO) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString(USER_ID_KEY, userId).apply()
+    }
+
+    suspend fun getUserId(): String? = withContext(Dispatchers.IO) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return@withContext sharedPreferences.getString(USER_ID_KEY, null)
+    }
+
+    suspend fun clearUserId() = withContext(Dispatchers.IO) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().remove(USER_ID_KEY).apply()
     }
 }

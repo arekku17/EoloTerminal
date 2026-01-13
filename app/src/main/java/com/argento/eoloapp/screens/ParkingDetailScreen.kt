@@ -1,5 +1,6 @@
 package com.argento.eoloapp.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.argento.eoloapp.PortraitCaptureActivity
 import com.argento.eoloapp.R
 import com.argento.eoloapp.components.StatusBadge
 import com.argento.eoloapp.data.EstacionamientoDetailData
@@ -86,6 +88,8 @@ import com.argento.eoloapp.viewmodel.ParkingDetailViewModel
 import com.argento.eoloapp.viewmodel.ParkingDetailViewModelFactory
 import com.argento.eoloapp.viewmodel.ReservationCreationState
 import com.argento.eoloapp.viewmodel.SearchState
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -109,6 +113,24 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
         refreshing = isRefreshing,
         onRefresh = { viewModel.fetchParkingDetail(isRefresh = true) }
     )
+
+    // Search State Hoisting
+    var searchQuery by remember { mutableStateOf("") }
+    
+    // QR Scanner Launcher
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            try {
+                val uri = android.net.Uri.parse(result.contents)
+                val id = uri.getQueryParameter("id")
+                if (!id.isNullOrEmpty()) {
+                    navController.navigate("MovementDetailScreen/${parkingId}/$id")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     // Bottom Sheet State
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -135,7 +157,14 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FloatingActionButton(
-                    onClick = { /* TODO: Implement Scanning */ },
+                    onClick = { 
+                        val options = ScanOptions()
+                        options.setPrompt("Escanea el código QR")
+                        options.setBeepEnabled(true)
+                        options.setOrientationLocked(true)
+                        options.setCaptureActivity(PortraitCaptureActivity::class.java)
+                        scanLauncher.launch(options)
+                    },
                     containerColor = Color.White,
                     contentColor = Color(0xFF2C3E50)
                 ) {
@@ -197,7 +226,11 @@ fun ParkingDetailScreen(navController: NavController, parkingId: String) {
                     ParkingContent(
                         data = data,
                         searchState = searchState,
-                        onSearch = { query -> viewModel.searchMovimientos(query) },
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { 
+                            searchQuery = it
+                            viewModel.searchMovimientos(it)
+                        },
                         navController = navController
                     )
                     
@@ -283,7 +316,7 @@ fun VehicleEntryBottomSheetContent(
             "Trailer / Tracto. 1 Plataforma",
             "Trailer / Tracto. 2 Plataformas",
             "Trailer / Tracto. 1 Cisterna/Pipa",
-            "Trailer / Tracto. 2 Cistenas/Pipas"),
+            "Trailer / Tracto. 2 Cisternas/Pipas"),
         "Bicicleta" to listOf("Estándar")
     )
 
@@ -296,13 +329,13 @@ fun VehicleEntryBottomSheetContent(
         "Trailer / Tracto. 1 Plataforma",
         "Trailer / Tracto. 2 Plataformas",
         "Trailer / Tracto. 1 Cisterna/Pipa",
-        "Trailer / Tracto. 2 Cistenas/Pipas"
+        "Trailer / Tracto. 2 Cisternas/Pipas"
     )
     
     val showPlacaCaja2 = selectedCategoria in listOf(
         "Trailer / Tracto. 2 Cajas",
         "Trailer / Tracto. 2 Plataformas",
-        "Trailer / Tracto. 2 Cistenas/Pipas"
+        "Trailer / Tracto. 2 Cisternas/Pipas"
     )
 
     // Fetch tariffs when type or category changes
@@ -323,7 +356,6 @@ fun VehicleEntryBottomSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = screenHeight * 0.8f) // Max 60% of screen height
             .verticalScroll(rememberScrollState()) // Enable scrolling
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp) 
@@ -593,6 +625,8 @@ fun VehicleEntryBottomSheetContent(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -653,7 +687,8 @@ fun ParkingHeader(parkingName: String) {
 fun ParkingContent(
     data: EstacionamientoDetailData,
     searchState: SearchState,
-    onSearch: (String) -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
     navController: NavController
 ) {
     LazyColumn(
@@ -707,15 +742,10 @@ fun ParkingContent(
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                var searchQuery by remember { mutableStateOf("") }
-
-                LaunchedEffect(searchQuery) {
-                    onSearch(searchQuery)
-                }
-
+                // Hoisted state is used here
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = onSearchQueryChange,
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White, RoundedCornerShape(12.dp)),
@@ -740,7 +770,7 @@ fun ParkingContent(
 
         items(displayList) { reserva ->
             MovementCard(reserva = reserva, data.Estacionamiento.timeZoneId) {
-                navController.navigate("MovementDetailScreen/${reserva.id}")
+                navController.navigate("MovementDetailScreen/${data.Estacionamiento.id}/${reserva.id}")
             }
         }
         item {

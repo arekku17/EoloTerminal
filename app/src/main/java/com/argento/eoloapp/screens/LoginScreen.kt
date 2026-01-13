@@ -93,7 +93,11 @@ fun LoginScreen(navController: NavHostController) {
             ) {
                 BottomComponent(
                     onLoginClick = { loginViewModel.login(phone, pin) },
-                    onSmsLoginClick = { navController.navigate("SmsLoginScreen") }
+                    onSmsLoginClick = {
+                        loginViewModel.sendOtp(phone)
+                        navController.navigate("SmsLoginScreen/$phone")
+                                      },
+                    phone.isNotEmpty()
                 )
             }
         }

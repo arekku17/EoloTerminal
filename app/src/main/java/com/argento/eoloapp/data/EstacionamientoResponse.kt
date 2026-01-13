@@ -18,6 +18,8 @@ data class Estacionamiento(
     val ciudad: String?,
     val estado: String?,
     val Activo: Boolean?,
-    val timeZoneId: String?
+    val timeZoneId: String?,
+    val DirecciónTicket: String?,
+    val Imagen: String?
     // Add other fields if necessary, but these are enough for the list
 )

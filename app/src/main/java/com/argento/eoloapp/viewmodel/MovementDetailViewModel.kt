@@ -13,7 +13,8 @@ import kotlinx.coroutines.launch
 
 class MovementDetailViewModel(
     private val sessionManager: SessionManager,
-    private val reservationId: String
+    private val reservationId: String,
+    private val parkingId: String
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<MovementDetailState>(MovementDetailState.Loading)
     val uiState: StateFlow<MovementDetailState> = _uiState.asStateFlow()
@@ -29,7 +30,7 @@ class MovementDetailViewModel(
                 val token = sessionManager.getAuthToken()
                 if (token != null) {
                     val bearerToken = "Bearer $token"
-                    val response = RetrofitInstance.api.getReservationDetail(bearerToken, reservationId)
+                    val response = RetrofitInstance.api.getReservationDetail(bearerToken, reservationId, parkingId)
                     if (response.status == "success") {
                         _uiState.value = MovementDetailState.Success(response.response)
                     } else {
@@ -53,12 +54,13 @@ sealed class MovementDetailState {
 
 class MovementDetailViewModelFactory(
     private val sessionManager: SessionManager,
-    private val reservationId: String
+    private val reservationId: String,
+    private val parkingId: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MovementDetailViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return MovementDetailViewModel(sessionManager, reservationId) as T
+            return MovementDetailViewModel(sessionManager, reservationId, parkingId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

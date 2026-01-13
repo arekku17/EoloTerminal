@@ -196,7 +196,7 @@ fun PasswordInputComponent(labelVal: String, value: String, onValueChange: (Stri
                 )
             }
         },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         visualTransformation = if (isShowPassword) VisualTransformation.None else PasswordVisualTransformation()
     )
 }
@@ -234,7 +234,7 @@ fun MyButton(labelVal: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun BottomComponent(onLoginClick: () -> Unit, onSmsLoginClick: () -> Unit) {
+fun BottomComponent(onLoginClick: () -> Unit, onSmsLoginClick: () -> Unit, enabled: Boolean = true) {
     Column {
         MyButton(labelVal = "Iniciar Sesión", onClick = onLoginClick)
         Spacer(modifier = Modifier.height(10.dp))
@@ -266,6 +266,7 @@ fun BottomComponent(onLoginClick: () -> Unit, onSmsLoginClick: () -> Unit) {
         Spacer(modifier = Modifier.height(5.dp))
         Button(
             onClick = onSmsLoginClick,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(

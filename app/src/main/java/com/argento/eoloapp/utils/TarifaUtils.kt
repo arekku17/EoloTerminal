@@ -27,9 +27,13 @@ object TarifaUtils {
         }
     }
 
-    private fun calcularSencilla(fechaIngreso: Long, fechaSalida: Long, frecuencia: String?, tarifa: Double?): Double {
+    private fun calcularSencilla(
+        fechaIngreso: Long,
+        fechaSalida: Long,
+        frecuencia: String?,
+        tarifa: Double?): Double {
         if (tarifa == null || frecuencia == null) return 0.0
-        if (fechaSalida < fechaIngreso) return 0.0
+        if (fechaSalida < fechaIngreso) return tarifa
 
         val diff = fechaSalida - fechaIngreso
 

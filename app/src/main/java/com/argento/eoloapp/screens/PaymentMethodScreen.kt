@@ -24,9 +24,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.argento.eoloapp.ui.theme.BrandColor
 import com.argento.eoloapp.R
+import com.argento.eoloapp.data.CobrarReservationRequest
+import com.argento.eoloapp.data.Result
+import com.argento.eoloapp.data.UserPreferences
+import com.argento.eoloapp.viewmodel.PaymentMethodViewModelFactory
+import com.argento.eoloapp.viewmodel.PaymentMethodViewModel
+import com.argento.eoloapp.session.SessionManager
 import com.mercadolibre.android.point_integration_sdk.nativesdk.MPManager
 import com.mercadolibre.android.point_integration_sdk.nativesdk.message.utils.doIfError
 import com.mercadolibre.android.point_integration_sdk.nativesdk.message.utils.doIfSuccess
@@ -36,17 +43,22 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentMethodScreen(navController: NavController, folio: String, amountString: String) {
+fun PaymentMethodScreen(navController: NavController, folio: String, amountString: String, idEstacionamiento: String) {
     val context = LocalContext.current
     val amount = amountString.toDoubleOrNull() ?: 0.0
 
+    val sessionManager = remember { SessionManager(context) }
+    val viewModel: PaymentMethodViewModel = viewModel(factory = PaymentMethodViewModelFactory(sessionManager))
+    val cobroState by viewModel.cobroState.collectAsState()
+    val isLoading = cobroState is Result.Loading
+
     var isCashSelected by remember { mutableStateOf(false) }
     var isTerminalSelected by remember { mutableStateOf(false) }
-    
+
     var cashReceived by remember { mutableStateOf("") }
-    
+
     val cashReceivedValue = cashReceived.toDoubleOrNull() ?: 0.0
-    
+
     // Calculations
     val remainderForTerminal = if (isCashSelected && isTerminalSelected) {
         if (cashReceivedValue >= amount) 0.0 else amount - cashReceivedValue
@@ -55,7 +67,7 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
     } else {
         0.0
     }
-    
+
     val change = if (isCashSelected) {
         if (cashReceivedValue > amount) cashReceivedValue - amount else 0.0
     } else {
@@ -65,12 +77,34 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
     val isPaymentMethodSelected = isCashSelected || isTerminalSelected
 
     val isCashValid = if (isCashSelected && !isTerminalSelected) {
-        cashReceivedValue != null && cashReceivedValue >= amount
+        cashReceived.isNotEmpty() && cashReceivedValue >= amount
     } else {
         !isCashSelected || cashReceived.isNotEmpty()
     }
 
     val isButtonEnabled = isPaymentMethodSelected && isCashValid
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.resetCobroState()
+        }
+    }
+
+    LaunchedEffect(cobroState) {
+        when (cobroState) {
+            is Result.Success -> {
+                Toast.makeText(context, "Pago en Efectivo Completado", Toast.LENGTH_SHORT).show()
+                navController.previousBackStackEntry?.savedStateHandle?.set("refresh", true)
+                navController.popBackStack()
+            }
+            is Result.Error -> {
+                val errorMessage = (cobroState as Result.Error).exception.message
+                Toast.makeText(context, "Error: $errorMessage", Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
+    }
+    
 
     Scaffold(
         topBar = {
@@ -139,9 +173,9 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
                 title = "Efectivo",
                 subtitle = "Pago directo en caja",
                 selected = isCashSelected,
-                icon = { 
+                icon = {
                     Box(modifier = Modifier.size(40.dp).background(Color(0xFFE8F5E9), CircleShape), contentAlignment = Alignment.Center) {
-                         Text("$", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                        Text("$", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
                     }
                 },
                 onSelect = { isCashSelected = !isCashSelected }
@@ -172,30 +206,30 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
                         unfocusedBorderColor = Color.LightGray
                     )
                 )
-                
+
                 if (change > 0) {
-                     Text("Cambio: ${NumberFormat.getCurrencyInstance(Locale.US).format(change)}", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                    Text("Cambio: ${NumberFormat.getCurrencyInstance(Locale.US).format(change)}", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
                 }
             }
-            
+
             if (isTerminalSelected) {
                 if (isCashSelected) {
                     Text("Restante a cobrar en terminal: ${NumberFormat.getCurrencyInstance(Locale.US).format(remainderForTerminal)}", fontWeight = FontWeight.Bold)
                 }
-                
+
                 Surface(
                     color = Color(0xFFE3F2FD),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                         Icon(Icons.Default.Warning, contentDescription = "Info", tint = Color(0xFF1976D2), modifier = Modifier.size(20.dp))
-                         Spacer(modifier = Modifier.width(8.dp))
-                         Text(
-                             "Al seleccionar Terminal, se va a cobrar el monto en este dispositivo",
-                             fontSize = 12.sp,
-                             color = Color(0xFF0D47A1)
-                         )
+                        Icon(Icons.Default.Warning, contentDescription = "Info", tint = Color(0xFF1976D2), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Al seleccionar Terminal, se va a cobrar el monto en este dispositivo",
+                            fontSize = 12.sp,
+                            color = Color(0xFF0D47A1)
+                        )
                     }
                 }
             }
@@ -206,34 +240,45 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
             Button(
                 onClick = {
                     val amountToCharge = if (isTerminalSelected && isCashSelected) remainderForTerminal else if (isTerminalSelected) amount else 0.0
-                    
+
                     if (isTerminalSelected && amountToCharge > 0) {
 
                         MPManager.paymentMethodsTools.getPaymentMethods { response ->
-                             response.doIfSuccess { result ->
-                                 val paymentFlow = MPManager.paymentFlow
-                                 val paymentFlowRequestData = PaymentFlowRequestData(
+                            response.doIfSuccess { result ->
+                                val paymentFlow = MPManager.paymentFlow
+                                val paymentFlowRequestData = PaymentFlowRequestData(
                                     amount = amountToCharge,
                                     description = "Pago Folio $folio",
                                     paymentMethod = result[0],
                                     printOnTerminal = false
-                                 )
-                                 paymentFlow.launchPaymentFlow(paymentFlowRequestData = paymentFlowRequestData) { mpResponse ->
-                                     mpResponse.doIfSuccess { paymentResult ->
-                                          Toast.makeText(context, "Pago exitoso: ${paymentResult.paymentReference}", Toast.LENGTH_LONG).show()
-                                     }.doIfError { error ->
-                                          Toast.makeText(context, "Error: ${error.message}", Toast.LENGTH_LONG).show()
-                                     }
-                                 }
-                             }.doIfError { exception ->
-                                 Toast.makeText(context, "Error MP: ${exception.message}", Toast.LENGTH_LONG).show()
-                             }
-                         }
+                                )
+                                paymentFlow.launchPaymentFlow(paymentFlowRequestData = paymentFlowRequestData) { mpResponse ->
+                                    mpResponse.doIfSuccess { paymentResult ->
+                                        Toast.makeText(context, "Pago exitoso: ${paymentResult.paymentReference}", Toast.LENGTH_LONG).show()
+                                    }.doIfError { error ->
+                                        Toast.makeText(context, "Error: ${error.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }.doIfError { exception ->
+                                Toast.makeText(context, "Error MP: ${exception.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
 
                         Toast.makeText(context, "Simulando cobro Terminal: ${NumberFormat.getCurrencyInstance(Locale.US).format(amountToCharge)}", Toast.LENGTH_SHORT).show()
                     } else if (isCashSelected) {
-                        Toast.makeText(context, "Pago en Efectivo Completado", Toast.LENGTH_SHORT).show()
-                        navController.popBackStack()
+                            val request = CobrarReservationRequest(
+                                monto_saldo = 0.0,
+                                wallet = "asdasd",
+                                montoreserva = amount,
+                                metodopago1 = "Efectivo",
+                                metodopago2 = null,
+                                tipotarjeta = "",
+                                monto1 = amount,
+                                monto2 = 0.0,
+                                reserva = idEstacionamiento
+                            )
+                            viewModel.cobrarReservation(request)
+
                     }
                 },
                 modifier = Modifier
@@ -241,9 +286,17 @@ fun PaymentMethodScreen(navController: NavController, folio: String, amountStrin
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandColor),
                 shape = RoundedCornerShape(8.dp),
-                enabled = isButtonEnabled
+                enabled = isButtonEnabled && !isLoading
             ) {
-                Text("Confirmar Pago", fontSize = 18.sp)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Confirmar Pago", fontSize = 18.sp)
+                }
             }
         }
     }
@@ -283,5 +336,17 @@ fun PaymentOptionCard(
                 colors = RadioButtonDefaults.colors(selectedColor = BrandColor)
             )
         }
+    }
+}
+
+@Composable
+fun FullScreenLoading() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = BrandColor)
     }
 }
